@@ -1,0 +1,5 @@
+* Inbox
+** [2026-10-26 Mon] 
+[[file:~/Notes/Org/Scratch 10-25-26.org::#should-i-change-the-o-for-my-delete-key][Should I change the =o= for my =Delete= key]]
+** [2026-10-26 Mon] 
+[[file:~/Notes/Org/Scratch 10-25-26.org::#org-mode-org-roam-core-features][Org-Mode & Org-Roam Core Features]]

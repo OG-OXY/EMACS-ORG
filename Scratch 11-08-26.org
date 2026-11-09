@@ -1,0 +1,7 @@
+#+title: Scratch<2026-11-08 Sun> 
+#+date:<2026-11-08 Sun>
+* TODO Fix Nushell Helix Mode State Prompt to Display State Through Starship
+** How does =character= work for starship?
+** How does nushell's Helix Modal State Prompt Work?
+** How does fish using starship prompt's =character= work
+* TODO Ditch Fish for Nushell or Drop Helix Mode for Nushell.

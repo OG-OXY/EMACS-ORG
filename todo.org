@@ -1,0 +1,19 @@
+* Inbox
+** [ ] Helix-Fish Mode
+[[file:~/Notes/Org/Scratch 11-08-26.org::*Figure Out How Fish-Helix Mode Works][Figure Out How Fish-Helix Mode Works]]
+** [ ] Herdr Binds 
+[[file:~/Notes/Org/Roam/20261107164623-tasks.org::*Tons of Herdr bind improvements to be had!!][Tons of Herdr bind improvements to be had!!]]
+** [ ] Notes from 11-06-26
+[[file:~/Notes/Org/Scratch 11-07-26.org::#make-sure-to-check-your-notes-from-11-06-26-for-tasks-if-list-is-completed][Make sure to check your notes from 11-06-26 for tasks if list is completed]]
+** [ ] Fix SQLITE
+[[file:~/Notes/Org/Scratch 11-07-26.org::#fix-sqlite-for-emacs.-fix-dooms-deprecated-use-of-name-changed-dired-mode-command][Fix SQLite for Emacs. Fix Doom's deprecated use of name changed dired mode command]]
+** [ ] Nushell Markdown Script
+[[file:~/Notes/Org/Scratch 11-07-26.org::#fish-or-nushell-markdown-to-org-script][Fish or Nushell Markdown to Org Script]]
+** [ ] Check Performance Cost of Herdr Panes and Helix Instances
+[[file:~/Notes/Org/Scratch 11-07-26.org::#check-wether-running-more-helix-instances-is-worth-it-or-not-if-i-can-get-that-zoom-plugin-to-work-for-helix-steel-then-i-could-solve-the-issue-of-not-being-able-to-zoom][Check wether running more helix instances is worth it or not, if i can get that zoom plugin to work for Helix + Steel then i could solve the issue of not being able to zoom]]
+** [ ] Improve VimiumC Binds
+[[file:~/Notes/Org/Scratch 11-07-26.org::#check-vimiumc-binds-to-see-if-theirs-improvements-to-be-made][Check VimiumC Binds to see if their's improvements to be made]]
+** [ ] Improve Stash Tab Settings and Binds (Zen Browser Extension)
+[[file:~/Notes/Org/Scratch 11-07-26.org::#check-out-tab-stash-extension][Check out Tab Stash extension]]
+** [ ] Find Some System to Solve Memory Leaks
+[[file:~/Notes/Org/Scratch 11-07-26.org::#todo-make-todo-in-org-or-some-type-of-reminder-to-kill-processes][make todo in org or some type of reminder to kill processes]]

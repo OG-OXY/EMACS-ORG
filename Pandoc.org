@@ -1,0 +1,10 @@
+#+title: Pandoc
+* TODO Notetaking Setup
+** Figure out what to do about notetaking setup
+- Pandoc?
+  - Use Helix to Write And Paste Markdown
+  - Convert To Org With Pandoc
+    - View In Doom With Org Mode Features
+- Write Native Markdown And Paste It? (AI Uses Markdown Natively Major Advantage)
+  - Use Obsidian For Viewing?
+- What is LaTex? 

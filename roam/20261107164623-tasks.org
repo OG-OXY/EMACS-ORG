@@ -1,0 +1,41 @@
+:PROPERTIES:
+:ID:       c819583f-4ef2-4ab1-bc26-825981de4480
+:END:
+#+title: Tasks
+
+* TODO Tons of Herdr bind improvements to be had!!
+- prefix g
+- prefix w
+- prefix n and p
+- Emacs uses alot of the same keys/prefixes and chords as herdr take care to not cause conflicts 
+- Maybe make it so i can hold alt? alt is a lesser used key i just need
+ to be careful about making herdr clash with helix or especially
+ Emacs/Doom 
+ 
+* TODO Fix Helix with steel minor modes
+- Move all minor modes to keys in another layer of the leader key menu like my yazi and the picker to f
+
+* TODO Fix binds conflicting with fish-helix
+- I mightve already completed this task actually
+
+* TODO Improve DOOM's terminal performance
+- Check wether its which key delay or is the GUI clients is actually way more responsive and faster then TUI client for some reason.
+  - If the GUI clients faster figure out why and try to fix TUI speed because it should be faster then the GUI
+
+* TODO Improve Fish Shell performance
+- Fish seemed to have terrible performance compared to nushell..
+- Figure out why fish is performing bad and fix it
+  - Cant fix it? maybe we should move to nushell full time, i dont think fish honestly
+    really does anything that nushell cant do but it definetly doesnt go the other way
+- Could it be starship?
+
+* TODO Fix Nushell prompt, Starship?
+- Figure out wether starship is working for nushell
+  - If Nushell is using starship right now try to figure out a way to fix helix mode
+    doing a =:= and a =>= for normal and insert mode, and making prompt look ugly..
+- Get Starship for nushell if it doesnt have it
+  
+* TODO Custom Org Templates
+- Learn how to make my own org templates these seem interesting and like the key to back
+  linking and making proper nodes and stuff
+

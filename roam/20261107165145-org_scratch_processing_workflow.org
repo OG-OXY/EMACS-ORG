@@ -1,0 +1,124 @@
+:PROPERTIES:
+:ID:       88e81dae-df58-405e-8e8e-66ff4abb753b
+#+TITLE: Master Org-Roam Zettelkasten Workflow Guide
+#+FILETAGS: :emacs:org:org-roam:zettelkasten:workflow:
+:END:
+* Overview & Core Prerequisites
+- Org-roam nodes are created when an Org file or subtree contains a unique =:ID:= property in its =:PROPERTIES:= drawer.
+- Links are bidirectional by nature: inserting a link from Note A to Note B automatically populates Note A in Note B's backlinks buffer.
+- Buffer commands use standard Doom Emacs bindings (=SPC m m ...=) or vanilla Org-roam bindings (=C-c n ...=).
+
+* Scenario 1: Fast Inline Link & New File Creation (Bypassing Capture Buffers)
+** Goal
+Drop a link at your cursor to a node that *does not exist yet*, automatically generate the target file in the background, and keep writing in your current buffer without popup interruption.
+
+** Step-by-Step Chronological Order
+1. Ensure your =config.el= contains =:immediate-finish t= in your Org-roam capture template:
+   #+BEGIN_SRC elisp
+   (setq org-roam-capture-templates
+         '(("d" "default" plain "%?"
+            :target (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: ${title}\n")
+            :immediate-finish t
+            :unnarrowed t)))
+   #+END_SRC
+2. Place cursor where you want to insert the new link.
+3. Press =SPC m m i= (Doom) or =C-c n i= (Vanilla) to trigger ~org-roam-node-insert~.
+4. Type the new node title (e.g., =The Five Nushell Rules=) and press =RET=.
+5. *Verification:* Org-roam creates =YYYYMMDDHHMMSS-the_five_nushell_rules.org= in your vault, indexes its =:ID:=, and inserts =[[id:UUID][The Five Nushell Rules]]= directly at your cursor. No capture buffer pops up.
+6. *Navigation:* To hop to the newly created empty note, press =C-c C-o= (or =RET= on the link). To hop back, use your window/buffer history.
+
+* Scenario 2: Standard Capture Buffer Workflow (Writing Note Content Interactively)
+** Goal
+Create a brand new standalone note, populate its contents inside a temporary window, commit it to disk, and leave a link in your active buffer.
+
+** Step-by-Step Chronological Order
+1. Press =SPC m m i= (Doom) or =C-c n i= (Vanilla) to invoke ~org-roam-node-insert~.
+2. Type the new note title in the minibuffer and hit =RET=.
+3. An Org capture window pops up with the template prefilled.
+4. Write your note content, metadata, and tags directly inside this temporary buffer.
+5. Press =C-c C-c= (or =SPC m k= in Doom) to finalize the capture.
+   - *Verification:* The capture window closes, the file is saved to =~/Notes/Org/Roam/=, the database updates, and the link is written to your starting buffer.
+6. *Warning:* Pressing =C-c C-k= aborts creation. Saving with =C-x C-s= and closing the buffer manually without =C-c C-c= skips the finalization hooks and breaks link placement.
+
+* Scenario 3: Linking to an Existing Node in Your Vault
+** Goal
+Connect your current note to an existing node already saved in your Zettelkasten database.
+
+** Step-by-Step Chronological Order
+1. Place cursor at the desired link location.
+2. Press =SPC m m i= (Doom) or =C-c n i= (Vanilla).
+3. Type keywords to filter your existing node database via autocompletion.
+4. Select the matching node title and press =RET=.
+5. *Verification:* A live link formatted as =[[id:UUID][Node Title]]= is inserted at point. Opening the target note's Org-roam buffer (=SPC m m l= or =C-c n l=) will display your starting note under its *Backlinks* list.
+
+* Scenario 4: Converting Existing In-Buffer Headings into Standalone Nodes
+** Goal
+Take an existing heading (and its body text) inside your current note and index it as an Org-roam node without moving it to a new file.
+
+** Step-by-Step Chronological Order
+1. Move cursor to the target heading line (e.g., =* Nushell Architecture=).
+2. Execute ~M-x org-id-get-create~ (or =C-c n t= / =SPC m m t=).
+3. *Verification:* An =:ID:= drawer is written directly below the heading:
+   #+BEGIN_SRC org
+   * Nushell Architecture
+   :PROPERTIES:
+   :ID:       a1b2c3d4-5678-90ab-cdef-1234567890ab
+   :END:
+   #+END_SRC
+4. The heading is now fully searchable in ~org-roam-node-find~ and can receive direct backlinks.
+
+* Scenario 5: Processing a Monolithic Brain-Dump File into Individual Atomic Notes
+** Goal
+Take a large scratchpad filled with multiple top-level =*= headings, extract each heading into its own separate =.org= file, and replace the text in the master document with live links.
+
+** Step-by-Step Chronological Order
+1. Open your master scratchpad document.
+2. Move your cursor to the headline of the first topic you want to extract.
+3. Run =M-x org-roam-refile=.
+4. Type the title for the new target node (or select an existing one) and press =RET=.
+5. *Verification:* 
+   - Org-roam creates a dedicated =.org= file in your Roam directory.
+   - The headline and all sub-content under it are moved into the new file.
+   - The headline in your scratchpad is replaced by an Org-roam link pointing to the new node.
+6. Repeat steps 2–5 for all remaining headings until your scratchpad is distilled into an organized Index/Table of Contents.
+
+* Scenario 6: Instant Text Region Extraction to a New Node ("Region-to-Roam")
+** Goal
+Highlight a chunk of arbitrary text in Visual Mode, extract it into its own node file, and leave a link in its place.
+
+** Step-by-Step Chronological Order
+1. Add this custom function to your Doom =config.el=:
+   #+BEGIN_SRC elisp
+   (defun my/org-roam-create-node-from-region (beg end)
+     "Extract highlighted region into a new Org-roam node and leave a link."
+     (interactive "r")
+     (if (use-region-p)
+         (let* ((text (buffer-substring-no-properties beg end))
+                (title (read-string "Node title: " text)))
+           (delete-region beg end)
+           (let ((node (org-roam-node-create :title title)))
+             (org-roam-capture- :node node
+                                :templates `(("d" "default" plain ,text
+                                              :target (file+head "%<%Y%m%d%H%M%S>-${slug}.org"
+                                                                 "#+title: ${title}\n")
+                                              :unnarrowed t)))
+             (insert (format "[[roam:%s][%s]]" title title))))
+       (message "No region selected!")))
+   #+END_SRC
+2. Highlight text in Visual Mode.
+3. Run =M-x my/org-roam-create-node-from-region=.
+4. Confirm or modify the prompt title and press =RET=.
+5. *Verification:* The selected text is deleted from the current buffer, saved into a new node file, and replaced with a =[[roam:Title][Title]]= link.
+
+* Scenario 7: Backlinking & Navigation
+** Forward Linking
+- Follow any link under point: =C-c C-o= (or =RET=).
+
+** Backlinking (Viewing Connections)
+- Toggle the live Org-roam sidebar: =SPC m m l= (Doom) or =C-c n l= (Vanilla).
+- *Verification:* A split buffer opens showing:
+  - *Backlinks:* Nodes that explicitly link to the active buffer.
+  - *Unlinked References:* Notes mentioning the title of the active buffer without an explicit link.
+
+** Visual Graph View
+- Open the interactive browser graph: =M-x org-roam-ui-mode=.

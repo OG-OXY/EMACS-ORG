@@ -1,0 +1,5 @@
+:PROPERTIES:
+:ID:       11ffda19-2ded-45af-8a8d-43f9ffc7b8c4
+:END:
+#+title: Multiple Helix Resources and Performance Costs
+

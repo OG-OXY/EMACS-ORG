@@ -1,0 +1,696 @@
+* Globally Re-usable Nix Declaration Helper Functions
+:PROPERTIES:
+:CUSTOM_ID: globally-re-usable-nix-declaration-helper-functions
+:END:
+** The Original Subject
+:PROPERTIES:
+:CUSTOM_ID: the-original-subject
+:END:
+- Example of the original module not using any custom nix logic or
+  helper functions.
+
+/Standard Module/
+
+#+begin_src nix
+{
+  ...
+}:
+{ 
+  flake.nixosModules.helix = { pkgs, config, ... }:
+  let
+    helixConfig = ./config.toml;
+    helixLanguages = ./languages.toml;
+    helixTheme = ./theme.toml;
+    helixSteel = pkgs.symlinkJoin {
+      name = "steel-wrapped";
+      paths = [ pkgs.steelix ];
+      buildInputs = [ pkgs.makeWrapper ];
+      postBuild = ''
+        mv $out/bin/hx $out/bin/sx 
+      '';    
+    };
+    Rust = pkgs.rust-bin.stable.latest.default.override {
+      extensions = [ "rust-src" "rust-analyzer" "clippy" "rustfmt" ];
+    };
+    initSCM = ./init.scm;
+    steelSCM = ./steel.scm;
+    efmConfig = ./efm-langserver.yaml;
+  in
+  {
+    environment = {
+      systemPackages = [
+        # Helix
+        pkgs.helix
+        # Steel With LSP & REPL
+        helixSteel
+        pkgs.steel
+        pkgs.steel-language-server
+        # Proxy-LS
+        pkgs.efm-langserver
+        # NIX
+        pkgs.nixd
+        pkgs.deadnix
+        pkgs.statix
+        pkgs.nixfmt-rs
+        # RUST
+        Rust
+        # SHELL
+        pkgs.fish-lsp
+        pkgs.bash-language-server
+        # LUA
+        pkgs.lua-language-server
+        pkgs.hyprls
+        pkgs.stylua
+        # JSON
+        pkgs.vscode-json-languageserver
+        pkgs.jq
+        # YAML
+        pkgs.yaml-language-server
+        pkgs.yamllint
+        pkgs.prettier
+        # TOML
+        pkgs.taplo
+        # Markdown
+        pkgs.marksman
+        pkgs.markdown-oxide
+        pkgs.markdownlint-cli2
+        pkgs.zk
+        # HTML
+        pkgs.vscode-html-languageserver
+        # CSS
+        pkgs.vscode-css-languageserver
+        # Lisp
+        pkgs.sbcl
+        pkgs.roswell
+        # JQ
+        pkgs.jq-lsp
+        pkgs.jqfmt
+      ];
+      sessionVariables = {
+        STEEL_HOME = "/.config/helix";
+      };  
+    };
+    # Part The Function Effects
+    systemd.tmpfiles.rules = [
+      "d /home/ty/.config/helix 0755 ty users -"
+      "d /home/ty/.config/helix/themes 0755 ty users -"
+      "d /home/ty/.config/efm-langserver 0755 ty users -"
+      "L+ /home/ty/.config/helix/config.toml - - - - ${helixConfig}"
+      "L+ /home/ty/.config/helix/languages.toml - - - - ${helixLanguages}"
+      "L+ /home/ty/.config/helix/themes/base16_custom.toml - - - - ${helixTheme}"
+      "L+ /home/ty/.config/helix/init.scm - - - - ${initSCM}"
+      "L+ /home/ty/.config/helix/helix.scm - - - - ${steelSCM}"
+      "L+ /home/ty/.config/efm-langserver/config.yaml - - - - ${efmConfig}"
+    ];
+  };
+}
+#+end_src
+
+--------------
+
+** Writing The Function and The Result
+:PROPERTIES:
+:CUSTOM_ID: writing-the-function-and-the-result
+:END:
+To reduce boilerplate to absolute zero, we can write a helper function
+that /automatically extracts parent directories/ so you never have to
+manually write a =d= line again. It can accept a type (=L+= for strict
+symlinks, =C+= for mutable copies), handle multiple users (=ty= and
+=root=) automatically, and be injected globally via a custom system
+module.
+
+Here is how you build and wire the =systemdLinksModule= to handle this
+across your entire flake.
+
+*** The Helper Module (=systemdLinksModule.nix=)
+:PROPERTIES:
+:CUSTOM_ID: the-helper-module-systemdlinksmodule.nix
+:END:
+Create a shared module in your repo that defines =mkLinks= and injects
+it into module arguments or makes it globally available:
+
+#+begin_src nix
+{ lib, config, ... }:
+
+let
+  users = [
+    { name = "ty"; home = "/home/ty"; group = "users"; }
+    { name = "root"; home = "/root"; group = "root"; }
+  ];
+
+  # The core helper engine
+  # Takes a list of specs: [ { path = ".config/helix/config.toml"; source = helixConfig; type = "L+"; } ]
+  mkLinks = entries:
+    let
+      expandEntry = u: entry:
+        let
+          fullPath = "${u.home}/${entry.path}";
+          # Automatically parse the parent directory from the target path!
+          dirPath = builtins.dirOf fullPath;
+          ruleType = entry.type or "L+"; # Defaults to symlink (L+), can be overridden to (C+)
+        in [
+          "d ${dirPath} 0755 ${u.name} ${u.group} -"
+          "${ruleType} ${fullPath} - - - - ${entry.source}"
+        ];
+    in
+    lib.unique (lib.flatten (map (u: map (e: expandEntry u e) entries) users));
+
+in
+{
+  # Option 1: Expose mkLinks globally via specialArgs or a custom module attribute
+  # Option 2: Provide it directly to any module that imports this or uses config.lib
+  config.systemd.tmpfiles.rules = mkLinks (config.systemd.userLinks or []);
+
+  # Define a custom option so any module can cleanly declare its links
+  options.systemd.userLinks = lib.mkOption {
+    type = lib.types.listOf (lib.types.submodule {
+      options = {
+        path = lib.mkOption { type = lib.types.str; };
+        source = lib.mkOption { type = lib.types.path; };
+        type = lib.mkOption { type = lib.types.enum [ "L+" "C+" ]; default = "L+"; };
+      };
+    });
+    default = [];
+  };
+}
+#+end_src
+
+--------------
+
+**** How Clean The Module Becomes
+:PROPERTIES:
+:CUSTOM_ID: how-clean-the-module-becomes
+:END:
+Once that helper module is imported into your system configuration, your
+individual module (like your Helix/Steel setup) shrinks down to just
+declaring what it wants. No boilerplate, no manual directory tracking:
+
+#+begin_src nix
+{ pkgs, ... }:
+let
+  helixConfig = ./config.toml;
+  helixLanguages = ./languages.toml;
+  helixTheme = ./theme.toml;
+  initSCM = ./init.scm;
+  steelSCM = ./steel.scm;
+  efmConfig = ./efm-langserver.yaml;
+in
+{
+  # Drop your files/symlinks effortlessly using the new option
+  systemd.userLinks = [
+    { path = ".config/helix/config.toml"; source = helixConfig; type = "L+"; }
+    { path = ".config/helix/languages.toml"; source = helixLanguages; type = "L+"; }
+    { path = ".config/helix/themes/base16_custom.toml"; source = helixTheme; type = "L+"; }
+    # Use "C+" if Steel or Forge needs to write/mutate the file locally on first boot!
+    { path = ".config/helix/init.scm"; source = initSCM; type = "C+"; }
+    { path = ".config/helix/helix.scm"; source = steelSCM; type = "C+"; }
+    { path = ".config/efm-langserver/config.yaml"; source = efmConfig; type = "L+"; }
+  ];
+}
+#+end_src
+
+--------------
+
+*** Why This Is Bulletproof
+:PROPERTIES:
+:CUSTOM_ID: why-this-is-bulletproof
+:END:
+1. /Zero Directory Boilerplate:/ =builtins.dirOf= looks at
+   =.config/helix/config.toml= and automatically generates the required
+   =d /home/ty/.config/helix ...= and =d /root/.config/helix ...=
+   commands behind the scenes.
+2. /Universal Mutability Toggle:/ By exposing the =type= field (=L+= vs
+   =C+=), any config that Forge or an app needs to mutate natively can
+   be dropped as an initial copy (=C+=) rather than a rigid symlink.
+3. /Multi-User Parity Built-In:/ The mapping loops over =ty= and =root=
+   natively, ensuring identical layout generation across both accounts
+   without repeating a single line of code.
+
+* Browsing And Controlling DE Remotely From Phone
+:PROPERTIES:
+:CUSTOM_ID: browsing-and-controlling-de-remotely-from-phone
+:END:
+To browse the web and interact with chat interfaces directly inside
+Emacs without breaking your terminal workflow, (especially over an SSH
+session from your phone via =herdr=) you have a few powerful options.
+
+Given that you're running =emacs-pgtk= on NixOS, traditional solutions
+like =eww= (Emacs Web Wowser) struggle heavily with modern
+JavaScript-heavy web apps like chat interfaces, but text-based browsers
+or dedicated chat clients inside Emacs solve this cleanly.
+
+--------------
+
+*** =eww= with an external text browser (The minimalist fallback)
+:PROPERTIES:
+:CUSTOM_ID: eww-with-an-external-text-browser-the-minimalist-fallback
+:END:
+Emacs comes with a built-in web browser called =eww=. While it cannot
+run JavaScript (meaning heavy web apps won't load), it renders HTML well
+and lets you copy/paste text buffers seamlessly into your workflow.
+
+- /To open:/ =M-x eww= then enter the URL.
+- /The catch:/ Modern chat UIs require JS. If =eww= fails to render a
+  modern chat frontend, you can run a terminal-based browser like
+  /Links/, /W3M/, or /Elinks/ inside an Emacs terminal buffer
+  (=M-x term= or =M-x ansi-term=).
+
+--------------
+
+*** Running =w3m= or =netsurf= inside an Emacs Buffer
+:PROPERTIES:
+:CUSTOM_ID: running-w3m-or-netsurf-inside-an-emacs-buffer
+:END:
+You can package a terminal browser and invoke it directly inside an
+Emacs split pane or window.
+
+1. Add =w3m= or =links= to your NixOS system packages or run it in a
+   shell buffer inside Emacs (=M-x shell=).
+2. Because it runs directly inside an Emacs terminal emulator (=term= or
+   =vterm=), your clipboard management, buffer copying, and =herdr=
+   window focus remain 100% intact without leaving the ecosystem.
+
+--------------
+
+*** Using =emacs-w3m= or =shr=
+:PROPERTIES:
+:CUSTOM_ID: using-emacs-w3m-or-shr
+:END:
+If you want deep Emacs integration, =emacs-w3m= acts as an interface to
+the external =w3m= binary, rendering web pages directly into standard
+Emacs buffers with full keybinding support and text selection that
+respects your kill ring.
+
+--------------
+
+*** Fixing your Clipboard/Paste Bottleneck over SSH
+:PROPERTIES:
+:CUSTOM_ID: fixing-your-clipboardpaste-bottleneck-over-ssh
+:END:
+Since your primary concern is copying code snippets, errors, and configs
+from your Nix-on-Droid session into the chat interface without breaking
+your terminal flow:
+
+- If you run a terminal-based browser or client inside an Emacs =vterm=
+  or =ansi-term= over your SSH session, /Emacs's internal kill ring
+  (=C-w=, =M-w=, =C-y=) acts as a universal bridge/.
+- You can yank code directly from your config buffers into the browser
+  buffer entirely within the same Emacs instance, bypassing mobile OS
+  clipboard restrictions between Termux/Nix-on-Droid and remote apps.
+
+To achieve maximum feature parity and modern Web rendering
+(Chromium/WebKit-level JS, CSS, video, logins) directly inside your
+workflow on /NixOS/ and /Niri/, the "best" path depends on whether you
+run inside /GUI Emacs (=emacs-pgtk=)/ or purely inside your
+/terminal/Ghostty/herdr session/.
+
+There are two top-tier options that will get you as close to a native
+Zen/Firefox experience as possible, along with the exact Nix packages
+needed.
+
+--------------
+
+*** Native Emacs XWidgets (=emacs-xwidgets=)
+:PROPERTIES:
+:CUSTOM_ID: native-emacs-xwidgets-emacs-xwidgets
+:END:
+Because you use =emacs-pgtk=, Emacs supports /XWidgets/, which embeds a
+full /WebKitGTK/ browser instance directly inside standard Emacs
+buffers.
+
+--------------
+
+**** Features & Parity
+:PROPERTIES:
+:CUSTOM_ID: features-parity
+:END:
+- /Capability:/ Renders modern JavaScript, modern CSS layouts, videos,
+  canvas, and complex web apps (including web chats, GitHub,
+  documentation, etc.).
+- /Controls:/ Works inside your Emacs window splits. You can jump into
+  standard Emacs selection/copy modes
+  (=M-x xwidget-webkit-copy-selection-as-kill=), type into forms
+  natively, and cycle buffers.
+- /Limitations:/ WebKitGTK can be slightly heavier on memory than a text
+  browser, and sound routing runs through GTK/PipeWire.
+
+--------------
+
+**** Adding Xwidgets To NixOS
+:PROPERTIES:
+:CUSTOM_ID: adding-xwidgets-to-nixos
+:END:
+To use xwidgets with your customized =emacs-pgtk= set up in
+=environment.systemPackages=, ensure your package build enables the
+=withXwidgets = true;= flag on the =emacs-pgtk= derivation.
+
+In your Nix configuration:
+
+#+begin_src nix
+
+environment.systemPackages = let
+  # Ensure the pgtk variant is overridden to include xwidgets support
+  emacsWithXwidgets = (pkgs.emacsPackagesFor (pkgs.emacs-pgtk.override {
+    withXwidgets = true;
+  })).emacsWithPackages (epkgs: with epkgs; [
+    # Add your required Emacs packages here
+    vterm
+  ]);
+in [
+  emacsWithXwidgets
+  pkgs.webkitgtk # System dependency for xwidgets
+];
+#+end_src
+
+--------------
+
+**** How to use:
+:PROPERTIES:
+:CUSTOM_ID: how-to-use
+:END:
+1. Open Emacs GUI.
+2. Launch the WebKit browser using: =M-x xwidget-webkit-browse-url=
+3. Hit =C-x b= or use Niri shortcuts to tile it alongside your =vterm=
+   or config buffers.
+
+--------------
+
+*** =browsh= (Full modern web rendering inside Ghostty/Terminal)
+:PROPERTIES:
+:CUSTOM_ID: browsh-full-modern-web-rendering-inside-ghosttyterminal
+:END:
+If you want to view a modern web browser *directly inside a Ghostty tab,
+Fish shell, or terminal buffer* without opening a separate GUI window,
+*=browsh=* is the closest tool available.
+
+--------------
+
+**** How =browsh= Works
+:PROPERTIES:
+:CUSTOM_ID: how-browsh-works
+:END:
+Instead of using a stripped-down HTML parser (like =w3m= or =lynx=),
+=browsh= runs a headless instance of *Firefox* in the background and
+converts the DOM, JS execution, and media directly into UTF-8 half-block
+graphics and text inside your terminal screen.
+
+- *Capability:* It executes full JS, loads modern single-page
+  applications (SPAs), handles full site authentication, and allows
+  video playback (rendered in ASCII/half-blocks).
+- *Copy/Paste:* Since it runs inside Ghostty/herdr, you can use standard
+  terminal selection or Emacs text selection (=M-w=) to instantly copy
+  snippets, code errors, and logs back and forth.
+
+--------------
+
+**** Browsh Setup on NixOS
+:PROPERTIES:
+:CUSTOM_ID: browsh-setup-on-nixos
+:END:
+Simply add =browsh= and =firefox= (which =browsh= uses as its headless
+backend) to your NixOS environment packages:
+
+#+begin_src nix
+environment.systemPackages = with pkgs; [
+  browsh
+  firefox # required backend driver
+];
+#+end_src
+
+--------------
+
+**** Usage:
+:PROPERTIES:
+:CUSTOM_ID: usage
+:END:
+In your Fish shell or Ghostty/herdr terminal tab, run:
+
+#+begin_src sh
+browsh
+#+end_src
+
+- Use =Ctrl+l= to enter a URL.
+- Scroll and select text directly using standard terminal mouse or key
+  shortcuts.
+
+--------------
+
+*** Comparison Summary
+:PROPERTIES:
+:CUSTOM_ID: comparison-summary
+:END:
+| Feature                 | =emacs-xwidgets= (Option 1) | =browsh= (Option 2)        | Text Browsers (=w3m= / =eww=) |
+|-------------------------+-----------------------------+----------------------------+-------------------------------|
+| /Engine/                | WebKitGTK                   | Headless Firefox           | Basic HTML/Text Parser        |
+| /JS/Modern App Support/ | Full                        | Full                       | Minimal / None                |
+| /Runs In/               | Emacs GUI Buffer            | Terminal / Ghostty / Herdr | Terminal / Emacs Buffer       |
+| /Copy/Paste Flow/       | Direct to Emacs Kill-Ring   | Direct Terminal Clipboard  | Direct Terminal/Kill-Ring     |
+
+To set up both =emacs-xwidgets= and =browsh= in your NixOS
+configuration, you need to configure your custom =emacs-pgtk= derivation
+with =withXwidgets = true=, include the necessary system dependencies
+like =webkitgtk=, and add =browsh= along with its backend requirement
+(=firefox=) to your =environment.systemPackages=.
+
+Here is how you can structure this cleanly in your NixOS configuration.
+
+--------------
+
+*** 1. Xwidgets Setup For NixOS
+:PROPERTIES:
+:CUSTOM_ID: xwidgets-setup-for-nixos
+:END:
+In your system configuration (or wherever your
+=environment.systemPackages= and custom Emacs package are defined), add
+the xwidgets override and the browsh packages:
+
+#+begin_src nix
+environment.systemPackages = let
+  # Override emacs-pgtk to enable xwidgets support
+  emacsWithXwidgets = (pkgs.emacsPackagesFor (pkgs.emacs-pgtk.override {
+    withXwidgets = true;
+  })).emacsWithPackages (epkgs: with epkgs; [
+    # Include your existing packages here (e.g., vterm, etc.)
+    vterm
+  ]);
+in [
+  # Emacs with WebKitGTK XWidgets enabled
+  emacsWithXwidgets
+
+  # System dependencies required for XWidgets rendering
+  pkgs.webkitgtk
+
+  # Terminal-based modern browser (requires firefox headless backend)
+  pkgs.browsh
+  pkgs.firefox
+];
+#+end_src
+
+/Verification:/ Run =nixos-rebuild switch= (or your flake equivalent)
+and verify that building completes without evaluation errors regarding
+=withXwidgets=.
+
+--------------
+
+*** 2. How to Use Both Tools
+:PROPERTIES:
+:CUSTOM_ID: how-to-use-both-tools
+:END:
+**** Using =emacs-xwidgets= (GUI Emacs Browser)
+:PROPERTIES:
+:CUSTOM_ID: using-emacs-xwidgets-gui-emacs-browser
+:END:
+Once your updated Emacs is built and launched in your Niri session:
+
+1. Open Emacs and run: =M-x xwidget-webkit-browse-url=
+2. Enter your URL (or paste chat links).
+3. /Verification:/ A native WebKit browser buffer will render inside
+   your Emacs split pane, supporting modern JavaScript, CSS, and
+   copy/paste interactions directly into your kill-ring.
+
+--------------
+
+**** Using =browsh= (Terminal/Ghostty Browser)
+:PROPERTIES:
+:CUSTOM_ID: using-browsh-terminalghostty-browser
+:END:
+Inside any Ghostty terminal tab, =herdr= pane, or an Emacs =vterm=
+buffer:
+
+1. Run the command:
+
+#+begin_src sh
+browsh
+#+end_src
+
+2. [@2] Press =Ctrl+l= to focus the URL bar, type your destination, and
+   hit Enter.
+3. /Verification:/ Headless Firefox starts in the background and renders
+   the modern web page via UTF-8 blocks directly inside your terminal
+   session, allowing seamless keyboard and mouse selection.
+
+--------------
+
+* How to Connect to DE From Phone
+:PROPERTIES:
+:CUSTOM_ID: how-to-connect-to-de-from-phone
+:END:
+** Using Waypipe
+:PROPERTIES:
+:CUSTOM_ID: using-waypipe
+:END:
+To control or forward graphical applications from your active Niri
+session while SSH'd in from your phone, standard X11 forwarding
+(=ssh -X=) won't natively map to Wayland compositors unless going
+through XWayland. However, you can achieve this seamlessly using either
+/Waypipe/ (the Wayland equivalent of =ssh -X=) or by mapping the active
+Niri Wayland socket directly.
+
+--------------
+
+*** Using =waypipe= (Best for running individual GUI apps over SSH)
+:PROPERTIES:
+:CUSTOM_ID: using-waypipe-best-for-running-individual-gui-apps-over-ssh
+:END:
+*Waypipe* is a proxy designed explicitly for Wayland clients. It
+compresses and forwards Wayland protocol streams over SSH, allowing you
+to launch a GUI application on your remote host and render it locally on
+your phone (if your phone runs a Wayland-compatible client/viewer).
+
+1. /Install Waypipe/ on both your NixOS host and your mobile environment
+   (if available via Nix-on-Droid/Termux):
+
+#+begin_src nix
+environment.systemPackages = [ pkgs.waypipe ];
+#+end_src
+
+2. [@2] /Launch a remote app from your phone/ by tunneling it through
+   =waypipe ssh=:
+
+#+begin_src sh
+waypipe ssh user@your-pc-ip "env WAYLAND_DISPLAY=wayland-1 alacritty"
+#+end_src
+
+--------------
+
+**** Waypipe VS Standard SSH
+:PROPERTIES:
+:CUSTOM_ID: waypipe-vs-standard-ssh
+:END:
+- /Standard SSH (=ssh user@ip=)/: Only forwards a text-based stream
+  (TTY/Shell). GUI applications have no idea where to draw themselves
+  because there is no Wayland compositor running on your phone's screen.
+- /Waypipe/: Acts as a transparent proxy. It intercepts the Wayland
+  drawing commands of a /single/ GUI application on your host PC,
+  compresses them, tunnels them over your encrypted SSH/Tailscale
+  connection, and renders them into a local Wayland viewer running on
+  your phone.
+
+/Verification:/ The application window should spawn through the SSH link
+and map back to your local client display.
+
+--------------
+
+*** Injecting Into Active Niri Wayland Socket (Best for controlling the active desktop)
+:PROPERTIES:
+:CUSTOM_ID: injecting-into-active-niri-wayland-socket-best-for-controlling-the-active-desktop
+:END:
+If your goal is to execute commands that inject directly into your
+/currently running/ host Niri session (so windows pop up on your
+physical desktop monitors rather than your phone screen), you point
+applications directly to Niri's active runtime environment variables.
+
+Niri exports its runtime socket into
+=$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY=.
+
+1. /Find your active session's display variables/ on the host machine:
+
+#+begin_src sh
+echo $WAYLAND_DISPLAY  # Usually wayland-1
+echo $XDG_RUNTIME_DIR  # Usually /run/user/1000
+#+end_src
+
+2. [@2] /Run remote commands targeting that session/ from your active
+   SSH shell by explicitly exporting the environment variables:
+
+#+begin_src fish
+set -x XDG_RUNTIME_DIR /run/user/1000
+set -x WAYLAND_DISPLAY wayland-1
+
+# Now launch your desired GUI program or compositor command
+notify-send "Hello from phone SSH session"
+#+end_src
+
+/Verification:/ The command will execute on the remote host and
+immediately manifest (e.g., a notification toast or application window)
+on your physical desktop monitors.
+
+However, based on what you just described---that you are SSH'd in,
+attached to your existing =herdr= session, and your graphical
+desktop/Zen browser is *already running live on your PC back
+home*---Waypipe isn't actually what you want here. Waypipe spawns /new/
+isolated instance of an app; it doesn't hook into an already open window
+on your desktop monitors.
+
+Since your goal is to *physically control and see your active desktop,
+windows, and WM bindings natively from your phone* while away, you are
+looking for a /remote desktop / screen streaming/ solution over your
+Tailscale tunnel, not a terminal proxy.
+
+--------------
+
+*** Wayland Remote Desktop (WayVNC)
+:PROPERTIES:
+:CUSTOM_ID: wayland-remote-desktop-wayvnc
+:END:
+Because you run *Niri* (a modern Wayland compositor), you can stream
+your live Niri session directly to your phone screen over Tailscale with
+hardware-accelerated latency, while your phone's touch screen or
+connected physical keyboard inputs map straight back to your desktop.
+
+--------------
+
+**** Setting up =wayvnc= (The native Niri screen sharer)
+:PROPERTIES:
+:CUSTOM_ID: setting-up-wayvnc-the-native-niri-screen-sharer
+:END:
+Niri supports screen sharing via the standard wlr-screencopy protocol.
+By running a VNC server like =wayvnc= on your host PC tied to your Niri
+session, you can open any standard VNC viewer app on your phone and see
+your exact monitors, open Zen browser windows, and active workspace
+bindings live.
+
+1. /Add =wayvnc= to your NixOS configuration:/
+
+#+begin_src nix
+environment.systemPackages = with pkgs; [
+  wayvnc
+];
+#+end_src
+
+2. [@2] /Start the server inside your active Niri session/ (either via
+   your startup script or manually through your current SSH/herdr
+   session by pointing it to your display socket):
+
+#+begin_src fish
+set -x XDG_RUNTIME_DIR /run/user/1000
+set -x WAYLAND_DISPLAY wayland-1
+wayvnc 0.0.0.0 5900
+#+end_src
+
+3. [@3] /Connect from your phone:/ On your Android phone (via
+   Termux/Nix-on-Droid or a native Android VNC client like /bVNC/ or
+   /KDE Connect/), connect to your PC's Tailscale IP address on port
+   =5900=.
+
+/Verification:/ Your entire Niri desktop---including your open Zen
+browser, workspace layouts, and active tabs---will stream directly to
+your phone screen, allowing you to use your physical keyboard to drive
+everything natively.
+
+--------------
+
+* 
+:PROPERTIES:
+:CUSTOM_ID: section
+:END:

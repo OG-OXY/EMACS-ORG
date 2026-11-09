@@ -1,0 +1,401 @@
+* TODO thoughts and tasks #tasks #TODO #11-06-26
+:PROPERTIES:
+:CUSTOM_ID: todo-thoughts-and-tasks-tasks-todo-11-06-26
+:END:
+** TODO Improve Yazi
+:PROPERTIES:
+:CUSTOM_ID: todo-improve-yazi
+:END:
+- Look for previewer plugins.
+- Figure out how yazi configurations opener and open rules work.
+- Figure out how plugin.prepend_previewers or append_previewers works.
+- Possible to make it so every opener declared is available through
+  shift + Return?
+
+--------------
+
+** TODO MPV IMV situation
+:PROPERTIES:
+:CUSTOM_ID: todo-mpv-imv-situation
+:END:
+- Improve IMV or scrap it for new, better, image viewer or to use MPV
+  for images instead.
+- MPV as an image viewer?
+
+--------------
+
+*** Settings to make mpv an image viewer
+:PROPERTIES:
+:CUSTOM_ID: settings-to-make-mpv-an-image-viewer
+:END:
+#+begin_src nix
+{ config, pkgs, ... }:
+
+{
+  programs.mpv = {
+    enable = true;
+    
+    # 1. High-Quality Rendering & Video/Image Settings
+    config = {
+      # Use the high-quality profile base
+      profile = "high-quality";
+      # Force use of a high-performance GPU context (Vulkan preferred, fallback to OpenGL)
+      gpu-api = "vulkan";
+      vo = "gpu-next";
+      
+      # Advanced Quality Upscaling
+      scale = "ewa_lanczossharp"; # High-end Jinc/Lanczos scaling for extreme clarity
+      cscale = "lanczos";         # Chroma upscaling
+      dscale = "mitchell";        # Downscaling algorithm
+      correct-downscaling = "yes";
+      linear-downscaling = "yes";
+      sigmoid-upscaling = "yes";
+      
+      # Performance & Behavior
+      hwdec = "auto-safe";        # Hardware decoding for videos in your folders
+      keep-open = "yes";          # Don't close the window when an image/video ends
+      reset-on-next-file = "video-aspect-override,loop-file,speed,sub-delay,video-pan-x,video-pan-y,video-zoom"; # Reset zoom level when flipping to next image
+      
+      # Fix image behavior (force mpv to recognize images instead of treating them as 1-second audio)
+      image-display-duration = "inf"; 
+      loop-file = "inf";
+    };
+
+    # 2. Keybindings tailored for image browsing
+    bindings = {
+      # Navigation (Arrow keys or Mouse Wheel)
+      "RIGHT" = "playlist-next";
+      "LEFT" = "playlist-prev";
+      "SPACE" = "playlist-next";
+      "BS" = "playlist-prev"; # Backspace to go back
+      "WHEEL_UP" = "playlist-prev";
+      "WHEEL_DOWN" = "playlist-next";
+
+      # Zooming and Panning (Holding Alt + Arrow Keys or +/-)
+      "=" = "add video-zoom 0.1";
+      "-" = "add video-zoom -0.1";
+      "Alt+left" = "add video-pan-x 0.05";
+      "Alt+right" = "add video-pan-x -0.05";
+      "Alt+up" = "add video-pan-y 0.05";
+      "Alt+down" = "add video-pan-y -0.05";
+      "Ctrl+0" = "set video-zoom 0; set video-pan-x 0; set video-pan-y 0"; # Reset zoom
+    };
+
+    # 3. Scripts that make mpv behave like an image app
+    scripts = with pkgs.mpvScripts; [
+      # Crucial: Automatically grabs all other images/videos in the directory 
+      # so you don't have to open them one by one.
+      mpris 
+      autoload 
+    ];
+  };
+
+  # Optional: Create a quick terminal alias 'mvi' so you don't confuse it with normal video playback
+  home.shellAliases = {
+    mvi = "mpv --image-display-duration=inf";
+  };
+}
+#+end_src
+
+--------------
+
+** TODO fix Helix with Steel
+:PROPERTIES:
+:CUSTOM_ID: todo-fix-helix-with-steel
+:END:
+- Need to move stuff im requiring in init.scm to helix.scm (or
+  steel.scm) to the load packages list in helix.scm (or steel.scm).
+- Add a new minor mode or two most likely to leader or space to fix
+  minor modes conflicting with default helix binds.
+
+--------------
+
+** TODO Fix Emacs
+:PROPERTIES:
+:CUSTOM_ID: todo-fix-emacs
+:END:
+- Fix Org/superstar/modern/appear.
+- Org Roams sqlite dependency not being detected or something.
+
+--------------
+
+** TODO Fix Doom Emacs
+:PROPERTIES:
+:CUSTOM_ID: todo-fix-doom-emacs
+:END:
+- Fix dired key bind (SPC f d)
+  - function is void: dired-read-dir-and-switches
+  - dired aux
+  - remap to the just =dired= command, equivalent to alt+x and typing
+    dired in and hitting enter or return
+- Dired is broken because of recent changes emacs made and updates to
+  functions and their namespaces have changed so the doom functions or
+  binds that call commands by the old name are not working hence why it
+  comes back as a void function when doing =SPC + f + d=
+
+--------------
+
+** TODO What should I use for a systemwide pager?
+:PROPERTIES:
+:CUSTOM_ID: todo-what-should-i-use-for-a-systemwide-pager
+:END:
+- bat is an option, i should alias cat for bat also.
+- can you use glow as a pager?
+
+--------------
+
+** TODO What should I use as a viewer for when i want to open and view files but not edit them?
+:PROPERTIES:
+:CUSTOM_ID: todo-what-should-i-use-as-a-viewer-for-when-i-want-to-open-and-view-files-but-not-edit-them
+:END:
+- Figure out how to default my systems $VISUAL to glow.
+- Is there a better option than glow/bat?
+
+--------------
+
+** TODO What is tealdeer exactly for? how can i use it and its features to the fullest extent
+:PROPERTIES:
+:CUSTOM_ID: todo-what-is-tealdeer-exactly-for-how-can-i-use-it-and-its-features-to-the-fullest-extent
+:END:
+- Heard that tealdeer acts almost as a commandline help/manpage personal
+  wiki and you can contribute to the real public tealdeer database if
+  you make your own manpages and follow proper format.
+- Is this better than using man?
+- Look at the options for man and replacing man and wether tealdeer acts
+  as a full on replacement or if its only for like a command or tools
+  --help flag.
+
+** TODO Learn how to use org and org roam
+:PROPERTIES:
+:CUSTOM_ID: todo-learn-how-to-use-org-and-org-roam
+:END:
+- How do nodes work? is it like obsidian?
+
+--------------
+
+** TODO TUI's?
+:PROPERTIES:
+:CUSTOM_ID: todo-tuis
+:END:
+- Look up some good TUI's to get.
+
+--------------
+
+** TODO Configure and rice Obsidian
+:PROPERTIES:
+:CUSTOM_ID: todo-configure-and-rice-obsidian
+:END:
+- Try to look at how to cosmetically improve obsidian.
+- Is their a tui for obsidian or a way to use in terminal instead of the
+  desktop or GUI applications? or is the gui the only option?
+- Get plugins for obsidian like exalidraw for drawing!
+- Look into wether obdisian can do just as much as "Org-Mode" can
+  nowadays especially with plugins available, aslong as i can replicate
+  its note system and agenda/task system then it might be worth going
+  with obsidian instead of org mode.
+
+/Pros to Obsidian/ - It just works, defaults to zettelkasten org-roam
+style nodes, when you make a note it captures it as a node and does the
+whole zettelkasten system by default. - backlinking and captures are
+super fast and easy, standard markdown supports the format and can find
+other files names in the same directory to.
+
+/Cons/ - Doesnt have babel, (direct code executation via binds from org
+SRC inline code blocks). - Able to organize configurations almost by
+turning you dotfiles into an executable table of contents, turning each
+function, script, and feature into an organized book structure with a
+table of contents with links to headers and then each piece of code or
+dotfiles isolated to one block of code. - Ya i think org is gonna be the
+way to go i just have to figure out this helix and bind situation. -
+Ways i could solve this. - Use Steels vim emulation plugin (eww, worst
+option probably). - GIT GUD - Configure emacs from scratch with helix
+mode (most time consuming, hardest). - Try to figure out how to hack
+doom emacs's evil mode. - Changing and using my own source code
+somehow. - Could somehow apply dooms ecosystem to vanilla to save time?
+(although id loose the unstraightened part of doom emacs unstraightened
+like this). - Is this possible through config.el? ie: us, - - Deal with
+evil-kakoune? (probably not the best considering it always selects).
+
+--------------
+
+** TODO Using Jujutsus pager
+:PROPERTIES:
+:CUSTOM_ID: todo-using-jujutsus-pager
+:END:
+- Can you use jujutsu's pager for manpages?
+- What is jujutsus pager/what is it called?
+- Could be an option for the manpaging/pager/viewer problem.
+
+--------------
+
+** TODO Improve IMV if i decide on keeping it
+:PROPERTIES:
+:CUSTOM_ID: todo-improve-imv-if-i-decide-on-keeping-it
+:END:
+#+begin_src nix
+{ config, pkgs, ... }:
+
+{
+  programs.imv = {
+    enable = true;
+    
+    settings = {
+      options = {
+        # 1. FIXED FREEZING: Turn off recursive directory scanning. 
+        # This stops imv from digging deep into hidden folders and locking up the main thread.
+        recursive = false;
+
+        # 2. FIXED ROTATION: Enforce automatic phone EXIF orientation tracking.
+        # This reads the tiny angle metadata saved by your phone camera and auto-rotates it upright.
+        suppress_default_binds = false;
+      };
+
+      # 3. TAILORED VIM / LAYER KEYBINDS (Ensuring your exact spacebar layer functions cleanly)
+      binds = {
+        # Image Switching Navigation
+        "h" = "prev";
+        "l" = "next";
+        "LEFT" = "prev";
+        "RIGHT" = "next";
+
+        # Zooming (Up/Down and j/k equivalents)
+        "j" = "zoom out";
+        "k" = "zoom in";
+        "UP" = "zoom in";
+        "DOWN" = "zoom out";
+
+        # Pan moving around inside a single zoomed image
+        "Shift+h" = "pan -50 0";
+        "Shift+l" = "pan 50 0";
+        "Shift+j" = "pan 0 50";
+        "Shift+k" = "pan 0 -50";
+        
+        # Reset image back to standard scale fitting the window
+        "r" = "reset";
+      };
+    };
+  };
+
+  # 4. LAUNCH ALIAS FIX
+  # Instead of running "imv .", use this alias. It instructs imv to open the current 
+  # image path or directory smoothly without dragging down the terminal environment.
+  home.shellAliases = {
+    imv = "${pkgs.imv}/bin/imv-dir";
+  };
+}
+#+end_src
+
+--------------
+
+** TODO Fix Yazi not unzipping files with enter/return key
+:PROPERTIES:
+:CUSTOM_ID: todo-fix-yazi-not-unzipping-files-with-enterreturn-key
+:END:
+** TODO Fix/Symlink Photos Backup zip file to home
+:PROPERTIES:
+:CUSTOM_ID: todo-fixsymlink-photos-backup-zip-file-to-home
+:END:
+- Probably want to use home manager
+- mkOutOfStoreSymlinks
+  - Should i use out of store linkks to manage steel for helix?
+
+** TODO Start migrating shit back and taking advantage of everything home-manager has to offer
+:PROPERTIES:
+:CUSTOM_ID: todo-start-migrating-shit-back-and-taking-advantage-of-everything-home-manager-has-to-offer
+:END:
+- Use OutOfStoreSymlinks
+- Use xdg.configFile and configData (could this be useful for steel shit
+  to declare cogs and stuff?) aswell as home.file and make the path
+  .source equal to a variable name which is equal to a path that points
+  to a file in the nix dir or something
+- Use home.file with variables pointing to souce
+- Look into xdg stuff, shit like xdg.desktopEntries and how that works
+
+* Nix Functions
+:PROPERTIES:
+:CUSTOM_ID: nix-functions
+:END:
+- find your helper functions put them in proper folder
+
+* Symlink to Root/start using home manager so stuff is the same as root
+:PROPERTIES:
+:CUSTOM_ID: symlink-to-rootstart-using-home-manager-so-stuff-is-the-same-as-root
+:END:
+* Figure out steel directory situation for ty and root and where exactly stuff belongs regarding what gets put into local share and what is accessed systemwide in their system linked runtime libs and stuff like share/steel and share/helix
+:PROPERTIES:
+:CUSTOM_ID: figure-out-steel-directory-situation-for-ty-and-root-and-where-exactly-stuff-belongs-regarding-what-gets-put-into-local-share-and-what-is-accessed-systemwide-in-their-system-linked-runtime-libs-and-stuff-like-sharesteel-and-sharehelix
+:END:
+** Figure out where STEEL_HOME defaults to for helix and steel
+:PROPERTIES:
+:CUSTOM_ID: figure-out-where-steel_home-defaults-to-for-helix-and-steel
+:END:
+*** read the nix files for steel and helix steel and figure out exactly what has to go to share and what doesnt
+:PROPERTIES:
+:CUSTOM_ID: read-the-nix-files-for-steel-and-helix-steel-and-figure-out-exactly-what-has-to-go-to-share-and-what-doesnt
+:END:
+*** Where does steel and helix with steel store libs and runtime libs aswell as scm components and share items
+:PROPERTIES:
+:CUSTOM_ID: where-does-steel-and-helix-with-steel-store-libs-and-runtime-libs-aswell-as-scm-components-and-share-items
+:END:
+**** Is steel and helix with steel's STEEL_HOME actually in root zone/linked by store to system/sw?
+:PROPERTIES:
+:CUSTOM_ID: is-steel-and-helix-with-steels-steel_home-actually-in-root-zonelinked-by-store-to-systemsw
+:END:
+*** Do i even need to use Forge, figure this out, we need to know wether it gets run during system build like emacs and wether running it outside of share is creating extra files with paths being required from a directory the files dont belong in, and so hence wont evaluate to the correct path, while being duplicates anyways that still get detected by steel and helix with steel because they actually are systemwide, requiring duplicate scm files from a spot where the paths dont actually resolve, if true simply deleting the duplicates would get it functioning again
+:PROPERTIES:
+:CUSTOM_ID: do-i-even-need-to-use-forge-figure-this-out-we-need-to-know-wether-it-gets-run-during-system-build-like-emacs-and-wether-running-it-outside-of-share-is-creating-extra-files-with-paths-being-required-from-a-directory-the-files-dont-belong-in-and-so-hence-wont-evaluate-to-the-correct-path-while-being-duplicates-anyways-that-still-get-detected-by-steel-and-helix-with-steel-because-they-actually-are-systemwide-requiring-duplicate-scm-files-from-a-spot-where-the-paths-dont-actually-resolve-if-true-simply-deleting-the-duplicates-would-get-it-functioning-again
+:END:
+* figure out why vanilla emacs is erroring with sqlite try moving Dirs and put Doom and vanilla into different directories for roam and probably org even could name them doom-org and emacs-org
+:PROPERTIES:
+:CUSTOM_ID: figure-out-why-vanilla-emacs-is-erroring-with-sqlite-try-moving-dirs-and-put-doom-and-vanilla-into-different-directories-for-roam-and-probably-org-even-could-name-them-doom-org-and-emacs-org
+:END:
+* symlink steel folder out of share so its easier to get to and edit like my nix configuration
+:PROPERTIES:
+:CUSTOM_ID: symlink-steel-folder-out-of-share-so-its-easier-to-get-to-and-edit-like-my-nix-configuration
+:END:
+* make more fish functions and alias's to do stuff faster
+:PROPERTIES:
+:CUSTOM_ID: make-more-fish-functions-and-aliass-to-do-stuff-faster
+:END:
+* start learning and using nushell
+:PROPERTIES:
+:CUSTOM_ID: start-learning-and-using-nushell
+:END:
+** Write some nushell helper functions and scripts like pandoc batch conversion for my notes
+:PROPERTIES:
+:CUSTOM_ID: write-some-nushell-helper-functions-and-scripts-like-pandoc-batch-conversion-for-my-notes
+:END:
+** Is nushell more than a shell even more then i think? Is it actually a programming language?
+:PROPERTIES:
+:CUSTOM_ID: is-nushell-more-than-a-shell-even-more-then-i-think-is-it-actually-a-programming-language
+:END:
+- Is it always better to write functions and scripts especially
+  complicated ones unless it has to do WITH fish directly because im
+  adjusting fish to write .nu files instead?
+
+* Write some more nix functions like desktopEntries and systemduserLinks.nix
+:PROPERTIES:
+:CUSTOM_ID: write-some-more-nix-functions-like-desktopentries-and-systemduserlinks.nix
+:END:
+* Write some etc profiles thing or fish shell init or something seperate for root so that so that when i login with sudo -s it goes home for root.
+:PROPERTIES:
+:CUSTOM_ID: write-some-etc-profiles-thing-or-fish-shell-init-or-something-seperate-for-root-so-that-so-that-when-i-login-with-sudo--s-it-goes-home-for-root.
+:END:
+- Is there an equivalent to this for doas?
+
+** Lookup what the exact mechanics of sudo -s are
+:PROPERTIES:
+:CUSTOM_ID: lookup-what-the-exact-mechanics-of-sudo--s-are
+:END:
+* Could i Possibly use overlays and compile/build helix with steel manually without nixpkgs? to get around all this nonsense and imperative file clashing with nix? Could i possibly just remove everything steel or helix from my nixpkgs and somehow expose my system paths to it so it can see/use everything system wide if it needs to and i could just use plain old git clone and then git checkout from master or main to steel-event-system
+:PROPERTIES:
+:CUSTOM_ID: could-i-possibly-use-overlays-and-compilebuild-helix-with-steel-manually-without-nixpkgs-to-get-around-all-this-nonsense-and-imperative-file-clashing-with-nix-could-i-possibly-just-remove-everything-steel-or-helix-from-my-nixpkgs-and-somehow-expose-my-system-paths-to-it-so-it-can-seeuse-everything-system-wide-if-it-needs-to-and-i-could-just-use-plain-old-git-clone-and-then-git-checkout-from-master-or-main-to-steel-event-system
+:END:
+** I could possibly use overlays to grab a specific commit of helix with steel inputs (steel-event-system)
+:PROPERTIES:
+:CUSTOM_ID: i-could-possibly-use-overlays-to-grab-a-specific-commit-of-helix-with-steel-inputs-steel-event-system
+:END:
+* Write fish for loop to convert and clear markdown files to norg
+:PROPERTIES:
+:CUSTOM_ID: write-fish-for-loop-to-convert-and-clear-markdown-files-to-norg
+:END:

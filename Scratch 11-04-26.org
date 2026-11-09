@@ -1,0 +1,413 @@
+* Does Order Matter, Emacs Configurations, Use-Package
+:PROPERTIES:
+:CUSTOM_ID: does-order-matter-emacs-configurations-use-package
+:END:
+In =use-package=, the keywords (=:demand=, =:custom=, =:bind=,
+=:config=, =:hook=, =:init=, etc.) *can generally be placed in any
+order*.
+
+=use-package= is a macro, meaning it parses all of those keyword blocks
+and reorganizes them into a standard, correct Elisp structure behind the
+scenes before Emacs executes the code.
+
+However, while keyword order rarely breaks syntax, *there are two
+specific exceptions where order strictly matters*.
+
+--------------
+
+*** Exception 1: Macro Variable Declarations (=:defines= & =:functions=)
+:PROPERTIES:
+:CUSTOM_ID: exception-1-macro-variable-declarations-defines-functions
+:END:
+If you use =:defines= or =:functions= to quiet byte-compiler warnings,
+they *must appear before* the code that references those variables or
+functions (such as inside =:init= or =:config=).
+
+#+begin_src elisp
+;; GOOD: :defines comes before :init accesses the variable
+(use-package my-pkg
+  :defines my-pkg-variable
+  :init
+  (setq my-pkg-variable t))
+#+end_src
+
+--------------
+
+*** Exception 2: Multiple Instances of the Same Keyword
+:PROPERTIES:
+:CUSTOM_ID: exception-2-multiple-instances-of-the-same-keyword
+:END:
+If you use the same keyword more than once in a single =use-package=
+block, =use-package= evaluates or applies them *in the order they are
+written from top to bottom*.
+
+#+begin_src elisp
+;; Order matters here! theme-b will run second and overwrite theme-a
+(use-package doom-themes
+  :config
+  (load-theme 'doom-one t)
+  :config
+  (load-theme 'doom-nord t))
+#+end_src
+
+--------------
+
+*** Recommended Standard Layout (Best Practice)
+:PROPERTIES:
+:CUSTOM_ID: recommended-standard-layout-best-practice
+:END:
+Even though =use-package= reorganizes keywords under the hood, adopting
+a consistent lifecycle order keeps your =.el= files readable and
+maintainable.
+
+Here is the standard community convention:
+
+#+begin_src elisp
+(use-package package-name
+  :demand t               ; 1. Load behavior (:demand, :defer)
+  :init                   ; 2. Code to run BEFORE the package loads
+  (setq variable-a t)
+
+  :custom                 ; 3. Package user options / customization
+  (package-option t)
+
+  :bind                   ; 4. Keybindings & Hooks (Triggers)
+  ("C-c a" . my-command)
+  :hook
+  (prog-mode . my-mode)
+
+  :config                 ; 5. Code to run AFTER the package loads
+  (package-setup-function))
+#+end_src
+
+--------------
+
+*** Summary
+:PROPERTIES:
+:CUSTOM_ID: summary
+:END:
+- *Can you mix up the keywords?* Yes. Writing =:config= before =:custom=
+  or =:demand= after =:bind= will work fine because the macro
+  restructures it during compilation.
+- *Is there a performance difference?* No. Keyword order in
+  =use-package= has zero effect on runtime performance or the Emacs
+  daemon.
+
+* How Do I Defer Emacs Packages
+:PROPERTIES:
+:CUSTOM_ID: how-do-i-defer-emacs-packages
+:END:
+In =use-package=, adding a *=:bind=* block automatically defers the
+package by default. Emacs creates light autoload stubs for the bound
+commands (=org-roam-node-find=, etc.) and completely skips loading
+=org-roam.el= until you press one of those key combinations.
+
+However, because you have *=(org-roam-setup)=* inside =:config=, there
+is one important detail to watch out for: *=org-roam-setup= turns on
+background hooks* (like database syncing and file modification
+listeners).
+
+--------------
+
+*** Option 1: Defer on Keybinds (Standard Lazy Loading)
+:PROPERTIES:
+:CUSTOM_ID: option-1-defer-on-keybinds-standard-lazy-loading
+:END:
+If you only want =org-roam= to load and initialize when you actually
+trigger one of your Org-Roam keybindings, leave it as you wrote it.
+=use-package= handles the deferral automatically:
+
+#+begin_src elisp
+(use-package org-roam
+  :custom
+  (org-roam-directory (expand-file-name "Roam" org-directory))
+  :bind (("C-c n l" . org-roam-buffer-toggle)
+         ("C-c n f" . org-roam-node-find)
+         ("C-c n i" . org-roam-node-insert))
+  :config
+  ;; This will ONLY run the first time you press C-c n l, C-c n f, or C-c n i
+  (org-roam-setup))
+#+end_src
+
+- *How it behaves:* =org-roam.el= stays completely unparsed in memory
+  until you hit =C-c n f= (or your leader equivalent). Upon keypress,
+  Emacs loads the package, runs =(org-roam-setup)= to initialize the DB
+  connections, and opens the node finder interface.
+
+--------------
+
+*** Option 2: Defer Loading Until You Open an Org File (=:hook=)
+:PROPERTIES:
+:CUSTOM_ID: option-2-defer-loading-until-you-open-an-org-file-hook
+:END:
+If you want =org-roam= to be ready as soon as you start working in
+Org-mode (so database syncing and auto-completion work immediately, but
+without slowing down non-Org editing or daemon boot), defer it with a
+hook instead:
+
+#+begin_src elisp
+(use-package org-roam
+  :custom
+  (org-roam-directory (expand-file-name "Roam" org-directory))
+  :hook (org-mode . org-roam-setup)
+  :bind (("C-c n l" . org-roam-buffer-toggle)
+         ("C-c n f" . org-roam-node-find)
+         ("C-c n i" . org-roam-node-insert)))
+#+end_src
+
+--------------
+
+*** Option 3: Eagerly Load on Daemon Boot (=:demand t=)
+:PROPERTIES:
+:CUSTOM_ID: option-3-eagerly-load-on-daemon-boot-demand-t
+:END:
+Since you run an Emacs daemon and prefer *zero cold-start latency* when
+searching your notes, pre-loading =org-roam= at daemon startup prevents
+a 100ms SQLite database initialization delay on your first =C-c n f=
+press:
+
+#+begin_src elisp
+(use-package org-roam
+  :demand t ; Pre-warms the SQLite database in background daemon RAM
+  :custom
+  (org-roam-directory (expand-file-name "Roam" org-directory))
+  :bind (("C-c n l" . org-roam-buffer-toggle)
+         ("C-c n f" . org-roam-node-find)
+         ("C-c n i" . org-roam-node-insert))
+  :config
+  (org-roam-setup))
+#+end_src
+
+--------------
+
+*** Key Takeaway
+:PROPERTIES:
+:CUSTOM_ID: key-takeaway
+:END:
+- Writing **=:bind= automatically implies =:defer t**=---you do not need
+  to explicitly write =:defer t=.
+- For a daemon setup, *Option 1* keeps it deferred until invoked, while
+  *Option 3* (=:demand t=) pre-caches the database in RAM so your very
+  first node lookup is instant.
+
+* Demand t or Defer For Runtime Peformance? Emacs
+:PROPERTIES:
+:CUSTOM_ID: demand-t-or-defer-for-runtime-peformance-emacs
+:END:
+Since you are running an Emacs daemon and only care about *"in-game"
+(runtime) responsiveness and zero keypress latency*, your overall rule
+is simple: *eagerly load (=:demand t=) everything you touch continuously
+while editing*, and *defer (=:defer t=) only the heavy, single-shot
+modes you call once in a while*.
+
+Here is the exact breakdown for every package in your list, categorized
+by how to configure it for max runtime performance.
+
+--------------
+
+*** 1. Core Navigation & UI --- **Set =:demand t**= (Eager Load)
+:PROPERTIES:
+:CUSTOM_ID: core-navigation-ui-set-demand-t-eager-load
+:END:
+These are tools you interact with every few seconds or on almost every
+single keypress. Pre-warming them in daemon RAM eliminates first-call
+stutters when opening menus or searching.
+
+| Package         | Recommendation | Why?                                                                               |
+|-----------------+----------------+------------------------------------------------------------------------------------|
+| *=vertico=*     | =:demand t=    | Core completion UI. Must be instant on every =M-x= or key combination.             |
+| *=marginalia=*  | =:demand t=    | Annotates Vertico completion candidates in real-time as you type.                  |
+| *=corfu=*       | =:demand t=    | In-buffer popup completion. Evaluates continuously on active typing.               |
+| *=orderless=*   | =:demand t=    | Matching engine for Vertico/Corfu. Executes regex searches per keypress.           |
+| *=consult=*     | =:demand t=    | Interactive search and buffer switcher (=SPC b b=). Must be pre-warmed.            |
+| *=perspective=* | =:demand t=    | Workspace isolation engine. Controls buffer filtering at the core level.           |
+| *=projectile=*  | =:demand t=    | Project root caching and file indexing. Pre-loading avoids project-switch hitches. |
+
+--------------
+
+*** 2. Org-Mode Stack --- **Set =:demand t**=
+:PROPERTIES:
+:CUSTOM_ID: org-mode-stack-set-demand-t
+:END:
+Org files load custom fontification, tables, and element parsers.
+Deferring Org components causes a noticeable frame freeze the first time
+you open an =.org= file.
+
+| Package           | Recommendation            | Why?                                                                                                                                                                  |
+|-------------------+---------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| *=org=*           | =:demand t=               | Heavy base package. Loading on daemon boot makes opening notes instantaneous.                                                                                         |
+| *=org-superstar=* | =:demand t=               | Renders heading icons. Must be loaded alongside =org-mode=.                                                                                                           |
+| *=org-appear=*    | =:demand t=               | Toggles hidden markup on cursor move. Needs to be active instantly in Org buffers.                                                                                    |
+| *=org-roam=*      | =:defer t= or =:commands= | *Exception:* =org-roam= boots a SQLite database. You can defer it to keybinds (=org-roam-node-find=, etc.) unless you want the database cached in RAM at daemon boot. |
+
+--------------
+
+*** 3. Standalone / Occasional Tools --- **Set =:defer t**=
+:PROPERTIES:
+:CUSTOM_ID: standalone-occasional-tools-set-defer-t
+:END:
+These are heavy tools you launch deliberately for specific tasks.
+Deferring them won't hurt your daily editing flow because you aren't
+invoking them on rapid key sequences.
+
+| Package         | Recommendation                  | Why?                                                                                |
+|-----------------+---------------------------------+-------------------------------------------------------------------------------------|
+| *=magit=*       | =:defer t= (via =:bind=)        | Heavy Git interface. Only invoked when hitting =C-x g= or your leader key for Git.  |
+| *=majutsu=*     | =:defer t= (via =:after magit=) | Jujutsu integration layer. Only needs to load alongside or after Magit/JJ commands. |
+| *=pandoc-mode=* | =:defer t= (via =:hook=)        | Single-shot document converter. No impact on active editing.                        |
+
+--------------
+
+*** Practical Example Configuration
+:PROPERTIES:
+:CUSTOM_ID: practical-example-configuration
+:END:
+Here is how you can set these up across your modular files for optimal
+daemon runtime execution:
+
+#+begin_src elisp
+;; --- Core Completion (Pre-loaded into Daemon RAM) ---
+(use-package vertico
+  :ensure nil
+  :demand t
+  :init (vertico-mode 1))
+
+(use-package marginalia
+  :ensure nil
+  :demand t
+  :init (marginalia-mode 1))
+
+(use-package orderless
+  :ensure nil
+  :demand t
+  :custom
+  (completion-styles '(orderless basic))
+  (completion-category-defaults nil))
+
+(use-package corfu
+  :ensure nil
+  :demand t
+  :init (global-corfu-mode 1))
+
+;; --- Workspace & Buffer Search ---
+(use-package consult
+  :ensure nil
+  :demand t
+  :config
+  (setq consult-line-numbers-widen t
+        consult-async-min-input 2
+        consult-buffer-filter
+        '("\\` " "\\`\\*Completions\\*" "\\`\\*Compile-Log\\*" "\\`\\*Messages\\*" "\\`\\*Help\\*" "\\`\\*scratch\\*")))
+
+(use-package perspective
+  :ensure nil
+  :demand t
+  :init
+  (setq persp-suppress-no-prefix-key-warning t)
+  :config
+  (persp-mode 1))
+
+(use-package projectile
+  :ensure nil
+  :demand t
+  :config
+  (projectile-mode 1))
+
+;; --- Defer Heavy Occasional Tools ---
+(use-package magit
+  :ensure nil
+  :defer t
+  :bind ("C-x g" . magit-status))
+
+(use-package majutsu
+  :ensure nil
+  :after magit)
+
+(use-package pandoc-mode
+  :ensure nil
+  :defer t
+  :hook ((markdown-mode org-mode) . turn-on-pandoc))
+#+end_src
+
+*** Verification
+:PROPERTIES:
+:CUSTOM_ID: verification
+:END:
+1. Save your changes and restart the daemon
+   (=pkill emacs && emacs --daemon=).
+2. Attach a client via =emacsclient -t=.
+3. Try triggering =SPC b b= or opening an Org file---there will be zero
+   cold-start delay or frame hitching.
+
+* Demand t Is Never Redundant
+:PROPERTIES:
+:CUSTOM_ID: demand-t-is-never-redundant
+:END:
+/Spot on. You nailed the logic./
+
+=use-package= automatically assumes a package should be deferred if you
+give it certain triggers like =:bind=, =:hook=, =:commands=, or =:mode=.
+Writing =:defer t= explicitly alongside those triggers is completely
+redundant.
+
+*** How =use-package= Decides to Defer
+:PROPERTIES:
+:CUSTOM_ID: how-use-package-decides-to-defer
+:END:
+- /Implicitly Deferred (No extra flags needed):/ If you use =:bind=,
+  =:hook=, =:commands=, or =:mode=, =use-package= automatically turns on
+  lazy-loading behind the scenes. It sets up autoloads so the package
+  stays unloaded until you hit the key or trigger the hook.
+- /Explicitly Eager (=:demand t=):/ Because triggers like =:bind= or
+  =:hook= force lazy-loading by default, =:demand t= acts as the
+  override switch. It tells =use-package=: /"Ignore the fact that I
+  bound a key or hooked this---load and evaluate this package
+  immediately right now."/
+
+*** Summary Rule of Thumb
+:PROPERTIES:
+:CUSTOM_ID: summary-rule-of-thumb
+:END:
+- /Using =:bind= or =:hook=?/ Just write the bind or hook. Leave
+  =:defer t= out.
+- /Want it pre-warmed in the daemon right away?/ Drop in =:demand t= and
+  it overrides any built-in deferral behavior.
+
+* Should I Get =pkgs.sqlite=
+:PROPERTIES:
+:CUSTOM_ID: should-i-get-pkgs.sqlite
+:END:
+You can safely keep =pkgs.sqlite= in your system packages if you want,
+but strictly speaking, it is redundant for Emacs/Org-Roam now that you
+have =epkgs.emacsql-sqlite= installed.
+
+Here is how it breaks down:
+
+** Do you need to keep =pkgs.sqlite=?
+:PROPERTIES:
+:CUSTOM_ID: do-you-need-to-keep-pkgs.sqlite
+:END:
+- /For Emacs:/ No. =emacsql-sqlite= bundles or links against its own
+  SQLite backend requirements internally for EmacSQL.
+- /For the rest of your system:/ It doesn't hurt to keep it. Many CLI
+  tools, Python scripts, databases, and desktop apps rely on the
+  system-wide SQLite library (=sqlite3=) being present on the path.
+  Leaving it in your system packages costs virtually nothing and
+  prevents random missing dependency errors when building custom
+  Rust/Python tools or scripts down the line.
+
+** What else can you use it for?
+:PROPERTIES:
+:CUSTOM_ID: what-else-can-you-use-it-for
+:END:
+Since you're building out an overpowered Nix command center and writing
+custom tooling in Rust/Python, having =pkgs.sqlite= globally available
+means you can:
+
+1. /Inspect and query local SQLite databases/ directly from your
+   terminal using the interactive CLI (=sqlite3=).
+2. /Back up or manipulate app databases/ (like browser profiles, local
+   caches, or state files for CLI utilities).
+3. /Build local scripts or mini-services/ in Python or C that require a
+   lightweight, serverless transactional database without spinning up a
+   full Postgres/MySQL daemon.

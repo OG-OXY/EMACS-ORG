@@ -1,0 +1,75 @@
+:PROPERTIES:
+:ID:       6e6e9a6c-d845-46cc-8e89-06d9ee1dcc78
+#+TITLE: Nushell Declarative Pipelines and Mental Models
+#+FILETAGS: :nushell:cli:workflow:programming:
+:END:
+* The Core Paradigm Shift
+- Stop writing Nushell using imperative shell-scripting patterns 
+  like variables, loops, mutable state, and manual error handling.
+- Nushell relies on *declarative data pipelines*.
+- Traditional shells force you to build every brick sequentially, 
+  where missing one edge case breaks the whole chain.
+- Nushell flips this: *you don't write control flow—you describe 
+  data transformations*.
+
+* The 4-Step Mental Pipeline for Any Nushell Command
+- Build 1-liners left-to-right using this exact sequence:
+  =[ 1. SOURCE ] | [ 2. FILTER ] | [ 3. TRANSFORM ] | [ 4. CONSUME / ACTION ]=
+
+** Step 1: SOURCE (Where is the data starting?)
+- Pick the command that outputs raw data:
+  - =ls= (files in folder)
+  - =ps= (running processes)
+  - =open config.json= (ingest file content)
+  - =$my_list= (an existing variable)
+
+** Step 2: FILTER (What rows or items do I care about?)
+- Narrow down the table using column conditions:
+  - =| where size > 10mb=
+  - =| where type == file=
+  - =| where name =~ 'org$'=
+
+** Step 3: TRANSFORM (How do I want the table shaped?)
+- Select or modify fields:
+  - =| select name size= (keep specific columns)
+  - =| sort-by modified --reverse= (order data)
+  - =| insert new_col { |row| ... }= (add calculated fields)
+
+** Step 4: CONSUME / ACTION (What do I do with it?)
+- Execute the final operation on each item:
+  - =| each { |row| cp $row.name ~/Notes/Org/ }=
+  - =| save output.json=
+  - =| length= (count items)
+
+* Concrete Rosetta Stone: Mental Mapping
+** Task: Copy all =.md= files larger than 1MB to =~/Backup=
+
+*** The Fish Way (Imperative state mapping)
+#+begin_src fish
+set -l md_files *.md
+for f in $md_files
+    if test -f "$f"
+        set -l size (stat -c%s "$f")
+        if test $size -gt 1048576
+            cp "$f" ~/Backup/
+        end
+    end
+end
+#+end_src
+
+*** The Nushell Way (Pipeline streaming)
+#+begin_src nushell
+# Source  -> Filter                            -> Action
+ls *.md   | where size > 1mb and type == file  | each { |f| cp $f.name ~/Backup/ }
+#+end_src
+
+* How to Learn Nushell Without the Overwhelm
+1. *Stop writing =.nu= script files right now.* Do everything directly 
+   inside the interactive terminal REPL.
+2. *Inspect data live at every pipe segment.* Type =ls=, hit enter. 
+   Type =ls | where type == file=, hit enter. You get instant visual 
+   feedback at every step without compiling or running a script.
+3. *Use =$in= and =explore=*
+   - Type any command and pipe it to =explore= (=ls | explore=) to get 
+   an interactive tabular TUI browser of your system state.
+   - Use =$in= inside blocks to reference the incoming piped data structure directly.

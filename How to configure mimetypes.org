@@ -1,0 +1,71 @@
+* How to configure mimeapp types and default application settings
+:PROPERTIES:
+:CUSTOM_ID: how-to-configure-mimeapp-types-and-default-application-settings
+:END:
+- Use home manager to configure Default application to use by mime type
+
+#+begin_src nix
+xdg.mimeApps = {
+  enable = true;
+  defaultApplications = {
+    # --- RESTORE IMAGES (From last night) ---
+    "image/jpeg" = [ "mvi.desktop" ];
+    "image/png"  = [ "mvi.desktop" ];
+    "image/gif"  = [ "mvi.desktop" ];
+    "image/webp" = [ "mvi.desktop" ];
+    "image/jxl"  = [ "mvi.desktop" ];
+    "image/bmp"  = [ "mvi.desktop" ];
+
+    # --- RESTORE FOLDER/DIRECTORY NAVIGATION ---
+    # Tells the system how to handle opening directories if an app requests it
+    "inode/directory" = [ "yazi.desktop" ]; 
+
+    # --- RESTORE COMPRESSED ARCHIVES ---
+    # Replace "org.gnome.FileRoller.desktop" with whatever extractor you use 
+    # (e.g., "org.kde.ark.desktop", "xarchiver.desktop", etc.)
+    "application/zip"                = [ "org.gnome.FileRoller.desktop" ];
+    "application/rar"                = [ "org.gnome.FileRoller.desktop" ];
+    "application/x-rar"              = [ "org.gnome.FileRoller.desktop" ];
+    "application/x-rar-compressed"   = [ "org.gnome.FileRoller.desktop" ];
+    "application/x-7z-compressed"    = [ "org.gnome.FileRoller.desktop" ];
+    "application/x-tar"              = [ "org.gnome.FileRoller.desktop" ];
+    "application/x-compressed-tar"   = [ "org.gnome.FileRoller.desktop" ];
+    "application/x-gzip"             = [ "org.gnome.FileRoller.desktop" ];
+    "application/x-bzip2"            = [ "org.gnome.FileRoller.desktop" ];
+  };
+};
+#+end_src
+
+--------------
+
+* Create custom desktop apps and modifying existing applications through custom .desltop entries
+:PROPERTIES:
+:CUSTOM_ID: create-custom-desktop-apps-and-modifying-existing-applications-through-custom-.desltop-entries
+:END:
+- Use home managers xdg.desktopEntries module to create mew custom
+  applications and desktop entries or modify existing applications and
+  their desktop entries
+
+#+begin_src nix
+xdg.desktopEntries.mvi = {
+  name = "MVI Image Viewer";
+  genericName = "Image Viewer";
+  exec = "${pkgs.mpv}/bin/mpv --profile=image-mode %F";
+  icon = "mpv";
+  terminal = false;
+  categories = [
+    "Graphics"
+    "Viewer"
+  ];
+  mimeType = [
+    "image/jpeg"
+    "image/png"
+    "image/gif"
+    "image/webp"
+    "image/jxl"
+    "image/bmp"
+  ];
+};
+#+end_src
+
+--------------
